@@ -1,0 +1,91 @@
+(module _)
+
+(concept literal)
+
+(concept assignable
+    (function = (assignable l) (assignable r)))
+
+(concept boolean
+    (function ! (boolean v)
+        (return boolean))
+    (function ! ((literal boolean) v)
+        (return (literal boolean)))
+    (using ~ (this-concept !))
+    (function && (boolean l) (boolean r)
+        (return boolean))
+    (function && ((literal boolean) l) ((literal boolean) r)
+        (return (literal boolean)))
+    (function || (boolean l) (boolean r)
+        (return boolean))
+    (function || ((literal boolean) l) ((literal boolean) r)
+        (return (literal boolean)))
+    (function ^ (boolean l) (boolean r)
+        (return boolean))
+    (function ^ ((literal boolean) l) ((literal boolean) r)
+        (return (literal boolean))))
+
+(concept equality-comparable
+    (function == (equality-comparable l) (equality-comparable r)
+        (return boolean))
+    (function == ((literal equality-comparable) l) ((literal equality-comparable) r)
+        (return (literal boolean))))
+
+(concept strict-weak-order
+    (function < (strict-weak-order l) (strict-weak-order r)
+        (return boolean))
+    (function < ((literal strict-weak-order) l) ((literal strict-weak-order) r)
+        (return (literal boolean))))
+
+(concept additive
+    (function + additive additive (return additive))
+    (function + (literal additive) (literal additive)
+        (return (literal additive))))
+
+(concept multiplicative
+    (function * multiplicative multiplicative (return multiplicative))
+    (function * (literal multiplicative) (literal multiplicative)
+        (return (literal multiplicative))))
+
+(concept number (boolean signed) (number bitsize) (boolean continuous) 
+                (: equality-comparable strict-weak-order additive multiplicative)
+    (function max
+        (return (literal number)))
+    (function min
+        (return (literal number))))
+
+(concept integer (boolean signed) (number bitsize) (: (number signed bitsize false)))
+(concept rational (boolean signed) (number bitsize) (: (number signed bitsize true)))
+(concept character (number bitsize) (: (integer false bitsize)))
+
+(concept pointer ())
+
+(concept array (concept element) (integer length)
+    (function + ((literal (array element)) l) ((literal (array element)) r)
+        (return (literal (array element (+ l.template.length r.template.length))))))
+
+(class bool (: boolean))
+(class char (: (character 8)))
+(class char16 (: (character 16)))
+(class char32 (: (character 32)))
+(class byte (: (integer false 8)))
+(class uint8 (: (integer false 8)))
+(class uint16 (: (integer false 16)))
+(class uint32 (: (integer false 32)))
+(class uint64 (: (integer false 64)))
+(class int8 (: (integer true 8)))
+(class int16 (: (integer true 16)))
+(class int32 (: (integer true 32)))
+(class int64 (: (integer true 64)))
+(class float32 (: (rational true 32)))
+(class float64 (: (rational true 64)))
+
+(concept string character (integer length) (: (array character length)))
+(class u8string (integer length) (: (string char8 length capacity)))
+(class u16string (integer length) (: (string char16 length capacity)))
+(class u32string (integer length) (: (string char32 length capacity)))
+
+(concept concrete (number bitsize)
+    (function storage)
+    (function align))
+
+(module)
