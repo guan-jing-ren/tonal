@@ -64,7 +64,8 @@ public:
 
 class Variable {
 public:
-  Id id;
+  shared_ptr<const Token> location;
+  vector<shared_ptr<Parameter>> parameters;
 };
 
 class ReturnType {};
@@ -107,7 +108,6 @@ public:
 
 class Module {
 public:
-  shared_ptr<const Token> location;
   unordered_map<shared_ptr<const Id>, vector<shared_ptr<const Concept>>>
       concepts;
   unordered_map<shared_ptr<const Id>, vector<shared_ptr<const Class>>> classes;
@@ -148,6 +148,30 @@ class ParseState {
         scope;
   };
 
+  class ListIterator {
+  public:
+    bool at_head() const { return *iter == list->head; }
+    bool at_tail() const { return *iter == list->tail; }
+
+    const shared_ptr<const Token> &operator*() { return *iter; }
+    const Token *operator->() { return iter->get(); }
+
+    ListIterator &operator++() {
+      while (*iter != list->tail && (*iter)->indent > list->tail->indent)
+        ++iter;
+      return *this;
+    }
+
+    ListIterator &operator--() {
+      while (*iter != list->head && (*iter)->indent > list->head->indent + 1)
+        --iter;
+      return *this;
+    }
+
+    shared_ptr<const List> list;
+    vector<shared_ptr<const Token>>::const_iterator iter;
+  };
+
 public:
   static map<filesystem::path, shared_ptr<const string>> sources;
   static map<filesystem::path, shared_ptr<ParseState>> states;
@@ -163,7 +187,10 @@ public:
   vector<shared_ptr<const Token>> current_token;
 
   ParseState(vector<shared_ptr<Token>> &&t, vector<shared_ptr<List>> &&l)
-      : tokens(begin(t), end(t)), lists(begin(l), end(l)) {}
+      : tokens(begin(t), end(t)), lists(begin(l), end(l)) {
+    current_module = make_shared<Module>();
+    modules.push_back(current_module);
+  }
 
   static void compile(const filesystem::path &path) {
     const auto full_path = canonical(absolute(path));
@@ -211,6 +238,42 @@ public:
         ->parse_file();
   }
 
+  const shared_ptr<const List> &
+  find_list(const shared_ptr<const Token> &token) const {
+    return *lower_bound(cbegin(lists), cend(lists), token,
+                        [](auto &&l, auto &&r) {
+                          using L = decay_t<decltype(l)>;
+                          using R = decay_t<decltype(r)>;
+
+                          if constexpr (is_same_v<L, List>)
+                            return l.head < r;
+                          else if constexpr (is_same_v<R, List>)
+                            return l < r.head;
+                          static_assert(!is_same_v<L, R>);
+                          return false;
+                        });
+  }
+
+  ListIterator iterate_list(const shared_ptr<const List> &list) {
+    ListIterator iter;
+    iter.list = list;
+    iter.iter = ++lower_bound(cbegin(tokens), cend(tokens), list->head);
+    return iter;
+  }
+
+  // vector<shared_ptr<const List>>
+  // list_path(const shared_ptr<const Token> &token) {
+  //   vector<shared_ptr<const List>> path;
+  //   path.push_back(find_list(token));
+  //   find_if(
+  //       reverse_iterator(lower_bound(cbegin(lists), cend(lists),
+  //       path.back())), reverse_iterator(cbegin(lists)), [&path](const auto
+  //       &list) {
+  //         return list->head->indent < path.back()->head->indent;
+  //       });
+  //   return path;
+  // }
+
   void parse_file() {
     for (auto &&list : lists)
       if (list->head->indent == 0)
@@ -223,31 +286,40 @@ public:
     current_list.push_back(list);
     auto first = ++lower_bound(cbegin(tokens), cend(tokens), list->head);
     auto last = lower_bound(cbegin(tokens), cend(tokens), list->tail);
-    for_each(first, last, [this, first](const auto &token) {
-      visit(
-          [this, &token](auto &&detail) {
-            using Detail = decay_t<decltype(detail)>;
-            if constexpr (is_same_v<Detail, Token::List>) {
-              process_list(*lower_bound(cbegin(lists), cend(lists), *token,
-                                        [](auto &&l, auto &&r) {
-                                          using L = decay_t<decltype(l)>;
-                                          using R = decay_t<decltype(r)>;
-
-                                          if constexpr (is_same_v<L, List>)
-                                            return l.head < r;
-                                          else if constexpr (is_same_v<R, List>)
-                                            return l < r.head;
-                                          static_assert(!is_same_v<L, R>);
-                                          return false;
-                                        }));
-            } else if constexpr (is_same_v<Detail, Token::Identifier>) {
+    // for_each(first, last, [this, first](const auto &token) {
+    visit(
+        [this /*, &token */](auto &&detail) {
+          using Detail = decay_t<decltype(detail)>;
+          if constexpr (is_same_v<Detail, Token::List>) {
+            // process_list(find_list(token));
+          } else if constexpr (is_same_v<Detail, Token::Identifier>) {
+          } else if constexpr (is_same_v<Detail, Token::Keyword>) {
+            switch (detail.keyword) {
+            case Keyword::MODULE:
+              declare_module();
+              break;
+            case Keyword::CONCEPT:
+              declare_concept();
+              break;
+            case Keyword::CLASS:
+              declare_class();
+              break;
+            case Keyword::FUNCTION:
+              declare_function();
+              break;
             }
-          },
-          token->detail);
-    });
+          }
+        },
+        (*first)->detail);
+    // });
 
     current_list.pop_back();
   }
+
+  // Parse for identifier names first, skip descriptions
+  // Parse identifier names as far as parameters
+  // - parameters for identifiers for disambiguation
+  // Identifiers are visible once parsed and checked for duplicates
 
   void declare_module() {
     // 1) Keyword
@@ -255,6 +327,19 @@ public:
 
     current_module = make_shared<Module>();
     shared_ptr<const Id> id;
+
+    cout << current_list.back()->head->region;
+    for (auto iter = iterate_list(current_list.back()); !iter.at_tail();
+         ++iter) {
+      visit(
+          [](auto &&detail) {
+            using Detail = decay_t<decltype(detail)>;
+            if constexpr (is_same_v<Detail, Identifier>) {
+              cout << "MODULE: " << detail.id << "\n";
+            }
+          },
+          iter->detail);
+    }
     modules.push_back(current_module);
   }
   void declare_concept() {
