@@ -157,13 +157,17 @@ class ParseState {
     const Token *operator->() { return iter->get(); }
 
     ListIterator &operator++() {
-      while (*iter != list->tail && (*iter)->indent > list->tail->indent)
+      while ((*iter)->indent > list->tail->indent + 1)
+        ++iter;
+      if (*iter != list->tail)
         ++iter;
       return *this;
     }
 
     ListIterator &operator--() {
-      while (*iter != list->head && (*iter)->indent > list->head->indent + 1)
+      while ((*iter)->indent > list->head->indent + 1)
+        --iter;
+      if (*iter != list->head)
         --iter;
       return *this;
     }
@@ -284,9 +288,7 @@ public:
     // cout << *list->head << " ... ... ... " << *list->tail << "\n";
 
     current_list.push_back(list);
-    auto first = ++lower_bound(cbegin(tokens), cend(tokens), list->head);
-    auto last = lower_bound(cbegin(tokens), cend(tokens), list->tail);
-    // for_each(first, last, [this, first](const auto &token) {
+    auto iter = iterate_list(list);
     visit(
         [this /*, &token */](auto &&detail) {
           using Detail = decay_t<decltype(detail)>;
@@ -310,8 +312,7 @@ public:
             }
           }
         },
-        (*first)->detail);
-    // });
+        iter->detail);
 
     current_list.pop_back();
   }
@@ -328,18 +329,19 @@ public:
     current_module = make_shared<Module>();
     shared_ptr<const Id> id;
 
-    cout << current_list.back()->head->region;
-    for (auto iter = iterate_list(current_list.back()); !iter.at_tail();
-         ++iter) {
-      visit(
-          [](auto &&detail) {
-            using Detail = decay_t<decltype(detail)>;
-            if constexpr (is_same_v<Detail, Identifier>) {
-              cout << "MODULE: " << detail.id << "\n";
-            }
-          },
-          iter->detail);
-    }
+    auto iter = iterate_list(current_list.back());
+    ++iter;
+    visit(
+        [](auto &&detail) {
+          using Detail = decay_t<decltype(detail)>;
+          if constexpr (is_same_v<Detail, Token::Identifier>) {
+            cout << "MODULE: " << detail.id << "\n";
+          }
+        },
+        iter->detail);
+    if (iter.at_tail() || !(++iter).at_tail())
+      ;
+
     modules.push_back(current_module);
   }
   void declare_concept() {
