@@ -353,6 +353,18 @@ public:
     LexicalScope &scope = current_scope.back();
     current_scope.push_back(Concept{});
     shared_ptr<const Id> id; // Append current concept or class
+
+    auto iter = iterate_list(current_list.back());
+    ++iter;
+    visit(
+        [](auto &&detail) {
+          using Detail = decay_t<decltype(detail)>;
+          if constexpr (is_same_v<Detail, Token::Identifier>) {
+            cout << "CONCEPT: " << detail.id << "\n";
+          }
+        },
+        iter->detail);
+
     current_scope.back().getConcept().location = current_list.back()->head;
     current_scope.pop_back();
   }
@@ -364,6 +376,18 @@ public:
     // 5) Members and functions
     current_scope.push_back(Class{});
     shared_ptr<const Id> id; // Append current concept or class.
+
+    auto iter = iterate_list(current_list.back());
+    ++iter;
+    visit(
+        [](auto &&detail) {
+          using Detail = decay_t<decltype(detail)>;
+          if constexpr (is_same_v<Detail, Token::Identifier>) {
+            cout << "CLASS: " << detail.id << "\n";
+          }
+        },
+        iter->detail);
+
     current_scope.pop_back();
   }
   void declare_function() {
@@ -375,6 +399,18 @@ public:
     // 6) Function body in description
     current_scope.push_back(Function{});
     shared_ptr<const Id> id; // Append current concept or class.
+
+    auto iter = iterate_list(current_list.back());
+    ++iter;
+    visit(
+        [](auto &&detail) {
+          using Detail = decay_t<decltype(detail)>;
+          if constexpr (is_same_v<Detail, Token::Identifier>) {
+            cout << "FUNCTION: " << detail.id << "\n";
+          }
+        },
+        iter->detail);
+
     current_scope.pop_back();
   }
   void declare_scope() {
