@@ -202,9 +202,14 @@ public:
         make_shared<string>(read_file(ifstream{full_path.u8string()}));
 
     auto file_tokens = tokenize(*sources[full_path]);
-    for (auto &t : file_tokens)
-      if (t.detail.index() != static_cast<char>(TokenType::WHITESPACE))
-        cout << t << "\n";
+    file_tokens.erase(
+        remove_if(begin(file_tokens), end(file_tokens), [](auto &token) {
+          return static_cast<TokenType>(token.detail.index()) ==
+                 TokenType::WHITESPACE;
+        }));
+    // for (auto &t : file_tokens)
+    //   if (t.detail.index() != static_cast<char>(TokenType::WHITESPACE))
+    //     cout << t << "\n";
 
     auto tokens = memory_sorted(move(file_tokens));
 
