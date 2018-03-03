@@ -41,7 +41,7 @@ private:
   string_view m_scope;
   string_view m_name;
 
-  friend class std::hash<Identifier>;
+  friend struct std::hash<Identifier>;
 };
 } // namespace tonal
 

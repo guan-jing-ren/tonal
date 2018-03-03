@@ -8,8 +8,8 @@ static const regex identifier_rx{
     "[_\\-[:alpha:]][_\\-.[:alnum:]]*[_\\-[:alnum:]]+"};
 
 Identifier::Identifier(const string_view &ident)
-    : m_fully_qualified(ident), m_name(m_fully_qualified),
-      m_scope(m_fully_qualified) {
+    : m_fully_qualified(ident), m_scope(m_fully_qualified),
+      m_name(m_fully_qualified) {
   if (!regex_match(begin(m_fully_qualified), end(m_fully_qualified),
                    identifier_rx))
     throw invalid_identifier{"Invalid identifier: " +

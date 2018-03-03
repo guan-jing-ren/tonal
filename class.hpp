@@ -1,5 +1,6 @@
 #pragma once
 
+namespace std {}
 namespace tonal {
 using namespace std;
 

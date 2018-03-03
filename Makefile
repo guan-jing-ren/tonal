@@ -1,5 +1,5 @@
 CXX=/home/kwan/clang5/bin/clang++
-CXXFLAGS=-std=c++17 -O3 -stdlib=libc++ -g3
+CXXFLAGS=-std=c++17 -O3 -stdlib=libc++ -g3 -Wall -pedantic -Werror
 LXXFLAGS=-Wl,-rpath=/home/kwan/clang5/lib/
 OBJECTS=$(addsuffix .o, $(basename $(wildcard *.cpp)))
 

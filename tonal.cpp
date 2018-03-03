@@ -302,6 +302,8 @@ public:
           } else if constexpr (is_same_v<Detail, Token::Identifier>) {
           } else if constexpr (is_same_v<Detail, Token::Keyword>) {
             switch (detail.keyword) {
+            default:
+              break;
             case Keyword::MODULE:
               declare_module();
               break;
