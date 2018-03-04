@@ -179,18 +179,20 @@ class ParseState {
     const Token *operator->() { return iter->get(); }
 
     ListIterator &operator++() {
-      while ((*iter)->indent > list->tail->indent + 1)
+      if (*iter != list->tail) {
         ++iter;
-      if (*iter != list->tail)
-        ++iter;
+        while ((*iter)->indent > list->tail->indent + 1)
+          ++iter;
+      }
       return *this;
     }
 
     ListIterator &operator--() {
-      while ((*iter)->indent > list->head->indent + 1)
+      if (*iter != list->head) {
         --iter;
-      if (*iter != list->head)
-        --iter;
+        while ((*iter)->indent > list->head->indent + 1)
+          --iter;
+      }
       return *this;
     }
 
