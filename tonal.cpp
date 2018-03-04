@@ -8,6 +8,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <regex>
 #include <sstream>
 #include <unordered_map>
 #include <vector>
@@ -197,7 +198,7 @@ class ParseState {
     vector<shared_ptr<const Token>>::const_iterator iter;
   };
 
-  bool require_literal = false;
+  bool require_literal = false; // Also suppresses external linkage
 
   class RequireLiteral {
   public:
@@ -336,6 +337,36 @@ public:
   //       });
   //   return path;
   // }
+
+  void report_syntax_error(const std::string &message,
+                           const shared_ptr<const Token> &token) {
+    auto top_level =
+        --find_if(reverse_iterator{lower_bound(cbegin(tokens), cend(tokens),
+                                               token)},
+                  reverse_iterator{cbegin(tokens)},
+                  [](const auto &token) { return token->indent == 0; })
+              .base();
+    auto list_iter = iterate_list(find_list(token));
+    while (!list_iter.at_tail())
+      ++list_iter;
+    string what = "Syntax error at line: " + to_string(token->line + 1) +
+                  ", column: " + to_string(token->column + 1) + "\n" + message;
+    string context{cbegin((*top_level)->region),
+                   find(cbegin(token->region), cend(list_iter->region), '\n')};
+    what += "┌─" + regex_replace(context, regex{"\\n"}, "\n│ ") + "\n";
+    auto token_offset =
+        distance(find(reverse_iterator{cbegin(token->region)},
+                      reverse_iterator{cbegin((*top_level)->region)}, '\n')
+                     .base(),
+                 cbegin(token->region));
+    string indicator(token->region.length(), '~');
+    indicator.front() = indicator.back() = '^';
+    what += "└";
+    for (auto i = 0; i <= token_offset; ++i)
+      what += "─";
+    what += indicator;
+    throw invalid_argument{what};
+  }
 
   void parse_file() {
     for (auto &&list : lists)
