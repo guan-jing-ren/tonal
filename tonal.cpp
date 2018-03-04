@@ -422,8 +422,8 @@ public:
 
     shared_ptr<const Id> id; // Append current concept or class
 
-    auto iter = iterate_list(current_list.back());
-    ++iter;
+    auto concept_listiter = iterate_list(current_list.back());
+    ++concept_listiter;
     visit(
         [](auto &&detail) {
           using Detail = decay_t<decltype(detail)>;
@@ -431,10 +431,11 @@ public:
             cout << "CONCEPT: " << detail.id << "\n";
           }
         },
-        iter->detail);
+        concept_listiter->detail);
 
-    current_scope.back().getConcept().location = current_list.back()->head;
-    current_scope.pop_back();
+    ++concept_listiter;
+    if (concept_listiter.at_tail())
+      return;
   }
   void declare_class() {
     RequireLiteral reqlit{*this};
@@ -448,8 +449,8 @@ public:
     // 5) Members and functions
     shared_ptr<const Id> id; // Append current concept or class.
 
-    auto iter = iterate_list(current_list.back());
-    ++iter;
+    auto list_iter = iterate_list(current_list.back());
+    ++list_iter;
     visit(
         [](auto &&detail) {
           using Detail = decay_t<decltype(detail)>;
@@ -457,9 +458,7 @@ public:
             cout << "CLASS: " << detail.id << "\n";
           }
         },
-        iter->detail);
-
-    current_scope.pop_back();
+        list_iter->detail);
   }
   void declare_function() {
     RequireLiteral reqlit{*this};
@@ -473,8 +472,8 @@ public:
     // 6) Function body in description
     shared_ptr<const Id> id; // Append current concept or class.
 
-    auto iter = iterate_list(current_list.back());
-    ++iter;
+    auto list_iter = iterate_list(current_list.back());
+    ++list_iter;
     visit(
         [](auto &&detail) {
           using Detail = decay_t<decltype(detail)>;
@@ -482,9 +481,7 @@ public:
             cout << "FUNCTION: " << detail.id << "\n";
           }
         },
-        iter->detail);
-
-    current_scope.pop_back();
+        list_iter->detail);
   }
   void declare_scope() {
     current_scope.push_back(Scope{});
