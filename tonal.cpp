@@ -52,12 +52,12 @@ class Parameter;
 
 class Id {
 public:
-  shared_ptr<const Token> token;
+  shared_ptr<const Token> location;
 
   class Hash {
   public:
     uint32_t operator()(const Id &id) const {
-      return hash<decltype(token)>{}(id.token);
+      return hash<decltype(location)>{}(id.location);
     }
   };
 };
@@ -76,7 +76,10 @@ class Scope {
 
 class Function {
 public:
-  shared_ptr<const Token> location;
+  filesystem::path declaration_file;
+  shared_ptr<const Token> declaration;
+  filesystem::path description_file;
+  shared_ptr<const Token> description;
   vector<shared_ptr<Variable>> captures;
   vector<shared_ptr<Parameter>> parameters;
   shared_ptr<ReturnType> return_type;
@@ -85,7 +88,10 @@ public:
 
 class Concept {
 public:
-  shared_ptr<const Token> location;
+  filesystem::path declaration_file;
+  shared_ptr<const Token> declaration;
+  filesystem::path description_file;
+  shared_ptr<const Token> description;
   vector<shared_ptr<Parameter>> parameters;
   vector<shared_ptr<Concept>> bases;
   vector<shared_ptr<Function>> functions;
@@ -93,7 +99,10 @@ public:
 
 class Class {
 public:
-  shared_ptr<const Token> location;
+  filesystem::path declaration_file;
+  shared_ptr<const Token> declaration;
+  filesystem::path description_file;
+  shared_ptr<const Token> description;
   vector<shared_ptr<Parameter>> parameters;
   vector<shared_ptr<Concept>> bases;
   vector<shared_ptr<Variable>> data;
@@ -108,6 +117,7 @@ public:
 
 class Module {
 public:
+  multimap<filesystem::path, shared_ptr<const Token>> locations;
   unordered_map<shared_ptr<const Id>, vector<shared_ptr<const Concept>>>
       concepts;
   unordered_map<shared_ptr<const Id>, vector<shared_ptr<const Class>>> classes;
@@ -190,9 +200,11 @@ public:
   vector<shared_ptr<const List>> current_list;
   vector<shared_ptr<const Token>> current_token;
 
-  ParseState(vector<shared_ptr<Token>> &&t, vector<shared_ptr<List>> &&l)
-      : tokens(begin(t), end(t)), lists(begin(l), end(l)) {
+  ParseState(filesystem::path p, vector<shared_ptr<Token>> &&t,
+             vector<shared_ptr<List>> &&l)
+      : path(p), tokens(begin(t), end(t)), lists(begin(l), end(l)) {
     current_module = make_shared<Module>();
+    current_module->locations.emplace(p, nullptr);
     modules.push_back(current_module);
   }
 
@@ -243,7 +255,8 @@ public:
                      return found && list->head->indent == token->indent;
                    });
 
-    (states[full_path] = make_shared<ParseState>(move(tokens), move(lists)))
+    (states[full_path] =
+         make_shared<ParseState>(full_path, move(tokens), move(lists)))
         ->parse_file();
   }
 
@@ -334,6 +347,9 @@ public:
     // 2) Identifier
 
     current_module = make_shared<Module>();
+    current_module->locations.emplace(path, current_list.back()->head);
+    modules.push_back(current_module);
+
     shared_ptr<const Id> id;
 
     auto iter = iterate_list(current_list.back());
