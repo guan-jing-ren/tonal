@@ -149,6 +149,17 @@ class ParseState {
     Function &getFunction() { return *get<2>(scope); }
     Scope &getScope() { return *get<3>(scope); }
 
+    template <typename T> T *arrow() {
+      if constexpr (is_same_v<T, Concept>)
+        return &getConcept();
+      else if constexpr (is_same_v<T, Class>)
+        return &getClass();
+      else if constexpr (is_same_v<T, Function>)
+        return &getFunction();
+      else if constexpr (is_same_v<T, Scope>)
+        return &getScope();
+    }
+
     template <typename T>
     LexicalScope(T &&t) : scope(make_shared<decay_t<T>>(forward<T>(t))) {}
 
@@ -184,6 +195,37 @@ class ParseState {
 
     shared_ptr<const List> list;
     vector<shared_ptr<const Token>>::const_iterator iter;
+  };
+
+  bool require_literal = false;
+
+  class RequireLiteral {
+  public:
+    RequireLiteral(ParseState &state)
+        : state(state), is_resetter(!state.require_literal) {
+      state.require_literal = true;
+    }
+    ~RequireLiteral() {
+      if (is_resetter)
+        state.require_literal = false;
+    }
+
+  private:
+    ParseState &state;
+    const bool is_resetter = true;
+  };
+
+  template <typename D> class Declarator {
+  public:
+    Declarator(ParseState &state) : state(state) {
+      state.current_scope.push_back(D{});
+    }
+    ~Declarator() { state.current_scope.pop_back(); }
+
+    D *operator->() { return state.current_scope.back().template arrow<D>(); }
+
+  private:
+    ParseState &state;
   };
 
 public:
@@ -343,6 +385,7 @@ public:
   // Identifiers are visible once parsed and checked for duplicates
 
   void declare_module() {
+    RequireLiteral reqlit{*this};
     // 1) Keyword
     // 2) Identifier
 
@@ -364,17 +407,18 @@ public:
         iter->detail);
     if (iter.at_tail() || !(++iter).at_tail())
       ;
-
-    modules.push_back(current_module);
   }
   void declare_concept() {
+    RequireLiteral reqlit{*this};
+    Declarator<Concept> decl{*this};
+    decl->declaration_file = path;
+    decl->declaration = current_list.back()->head;
     // 1) Keyword
     // 2) Identifier
     // 3) Concept or literal parameters
     // 4) Inherited concepts (: ...)
     // 5) Members and functions
-    LexicalScope &scope = current_scope.back();
-    current_scope.push_back(Concept{});
+
     shared_ptr<const Id> id; // Append current concept or class
 
     auto iter = iterate_list(current_list.back());
@@ -392,12 +436,15 @@ public:
     current_scope.pop_back();
   }
   void declare_class() {
+    RequireLiteral reqlit{*this};
+    Declarator<Class> decl{*this};
+    decl->declaration_file = path;
+    decl->declaration = current_list.back()->head;
     // 1) Keyword
     // 2) Identifier
     // 3) Concept or literal parameters
     // 4) Inherited classes (: ...)
     // 5) Members and functions
-    current_scope.push_back(Class{});
     shared_ptr<const Id> id; // Append current concept or class.
 
     auto iter = iterate_list(current_list.back());
@@ -441,13 +488,15 @@ public:
     current_scope.pop_back();
   }
   void declare_variable() {
+    RequireLiteral reqlit{*this};
     // 1) Resolved type
     // 2) Identifier
   }
   void declare_identifier() {
+    RequireLiteral reqlit{*this};
     // - Check for conflicts
   }
-  void declare_parameter() {}
+  void declare_parameter() { RequireLiteral reqlit{*this}; }
   void declare_alias() {
     // - Using free function as member function
     // - Using inherited function as member function
