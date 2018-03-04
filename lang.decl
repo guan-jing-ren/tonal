@@ -46,20 +46,20 @@
     (function * (literal multiplicative) (literal multiplicative)
         (return (literal multiplicative))))
 
-(concept number (boolean signed) (number bitsize) (boolean continuous) 
+(concept number (<> (boolean signed) (number bitsize) (boolean continuous))
                 (: equality-comparable strict-weak-order additive multiplicative)
     (function max
         (return (literal number)))
     (function min
         (return (literal number))))
 
-(concept integer (boolean signed) (number bitsize) (: (number signed bitsize false)))
-(concept rational (boolean signed) (number bitsize) (: (number signed bitsize true)))
-(concept character (number bitsize) (: (integer false bitsize)))
+(concept integer (<> (boolean signed) (number bitsize)) (: (number signed bitsize false)))
+(concept rational (<> (boolean signed) (number bitsize)) (: (number signed bitsize true)))
+(concept character (<> (number bitsize)) (: (integer false bitsize)))
 
 (concept pointer ())
 
-(concept array (concept element) (integer length)
+(concept array (<> (concept element) (integer length))
     (function + ((literal (array element)) l) ((literal (array element)) r)
         (return (literal (array element (+ l.template.length r.template.length))))))
 
@@ -79,12 +79,12 @@
 (class float32 (: (rational true 32)))
 (class float64 (: (rational true 64)))
 
-(concept string character (integer length) (: (array character length)))
-(class u8string (integer length) (: (string char8 length capacity)))
-(class u16string (integer length) (: (string char16 length capacity)))
-(class u32string (integer length) (: (string char32 length capacity)))
+(concept string (<> character (integer length)) (: (array character length)))
+(class u8string (<> (integer length)) (: (string char8 length capacity)))
+(class u16string (<> (integer length)) (: (string char16 length capacity)))
+(class u32string (<> (integer length)) (: (string char32 length capacity)))
 
-(concept concrete (number bitsize)
+(concept concrete (<> (number bitsize))
     (function storage)
     (function align))
 
