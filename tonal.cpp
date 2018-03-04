@@ -305,18 +305,16 @@ public:
 
   const shared_ptr<const List> &
   find_list(const shared_ptr<const Token> &token) const {
-    return *lower_bound(cbegin(lists), cend(lists), token,
-                        [](auto &&l, auto &&r) {
-                          using L = decay_t<decltype(l)>;
-                          using R = decay_t<decltype(r)>;
-
-                          if constexpr (is_same_v<L, List>)
-                            return l.head < r;
-                          else if constexpr (is_same_v<R, List>)
-                            return l < r.head;
-                          static_assert(!is_same_v<L, R>);
-                          return false;
-                        });
+    return *lower_bound(
+        cbegin(lists), cend(lists), token, [](auto &&l, auto &&r) {
+          using L = decay_t<decltype(*l)>;
+          using R = decay_t<decltype(*r)>;
+          static_assert(is_same_v<L, List> || is_same_v<R, List>);
+          if constexpr (is_same_v<L, List>)
+            return l->head < r;
+          else if constexpr (is_same_v<R, List>)
+            return l < r->head;
+        });
   }
 
   ListIterator iterate_list(const shared_ptr<const List> &list) {
