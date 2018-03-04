@@ -174,7 +174,7 @@ void report_error(const string &message, size_t pos,
   arrow[token_start] = arrow[token_end] = '+';
   pos += token_start;
   arrow[pos] = '^';
-  string location = "Syntax error at line: " + to_string(current->line + 1) +
+  string location = "Lexical error at line: " + to_string(current->line + 1) +
                     ", column: " + to_string(pos + 1) + '\n';
   equal(begin(arrow), end(arrow), cbegin(line), [](char &a, char l) {
     if (l == '\n')
@@ -193,10 +193,10 @@ void report_error(const string &message, size_t pos,
 
 static const regex pack_rx{R"(^\.\.\.(.*))"};
 static const regex unpack_rx{R"((.*)\.\.\.$)"};
-template <bool Pack = true, typename ReportSyntaxError, typename TokenOffset>
-Token::Identifier validate_pack_unpack(cmatch match,
-                                       ReportSyntaxError &&report_syntax_error,
-                                       TokenOffset &&token_offset) {
+template <bool Pack = true, typename ReportLexicalError, typename TokenOffset>
+Token::Identifier
+validate_pack_unpack(cmatch match, ReportLexicalError &&report_lexical_error,
+                     TokenOffset &&token_offset) {
   Token::Identifier t;
   t.id = string_view(match[1].first, match[1].length());
   t.pack = Pack;
@@ -205,25 +205,26 @@ Token::Identifier validate_pack_unpack(cmatch match,
   auto offset = distance(match[0].first, match[1].first);
   string pack_unpack = Pack ? "pack" : "unpack";
   if (auto idx = t.id.find('.'); idx != string_view::npos)
-    report_syntax_error("Period found in identifier " + pack_unpack + ":\n",
-                        idx + offset);
+    report_lexical_error("Period found in identifier " + pack_unpack + ":\n",
+                         idx + offset);
 
   if (matches(t.id, regex{R"([^[:alpha:]_]+.*)"}, match))
-    report_syntax_error("Identifier " + pack_unpack +
-                            " must begin with letters or underscore:\n",
-                        token_offset(match[0].first));
+    report_lexical_error("Identifier " + pack_unpack +
+                             " must begin with letters or underscore:\n",
+                         token_offset(match[0].first));
 
   if (identifier2keyword.find(t.id) != identifier2keyword.cend())
-    report_syntax_error("Identifier " + pack_unpack + " cannot be a keyword:\n",
-                        token_offset(cbegin(t.id)));
+    report_lexical_error("Identifier " + pack_unpack +
+                             " cannot be a keyword:\n",
+                         token_offset(cbegin(t.id)));
 
   return t;
 }
 
 static const regex number_rx{R"((-|\+)?(0[[:alpha:]])?(\.?)(.*))"};
-template <typename ReportSyntaxError, typename TokenOffset>
+template <typename ReportLexicalError, typename TokenOffset>
 Token::Number validate_number(cmatch match,
-                              ReportSyntaxError &&report_syntax_error,
+                              ReportLexicalError &&report_lexical_error,
                               TokenOffset &&token_offset) {
   Token::Number t;
   t.sign = string_view(match[1].first, match[1].length());
@@ -237,7 +238,7 @@ Token::Number validate_number(cmatch match,
   if (t.base.length() > 1)
     switch (*(cbegin(t.base) + 1)) {
     default:
-      report_syntax_error("Unknown base:\n", token_offset(cbegin(t.base)) + 1);
+      report_lexical_error("Unknown base:\n", token_offset(cbegin(t.base)) + 1);
       break;
     case 'b':
       base = 2;
@@ -268,23 +269,23 @@ Token::Number validate_number(cmatch match,
       break;
     }
 
-  const auto validate_digits = [&digits_rx, &report_syntax_error,
+  const auto validate_digits = [&digits_rx, &report_lexical_error,
                                 &token_offset](const string &aspect,
                                                const string_view &digits) {
     cmatch nondigit_match;
     if (regex_search(cbegin(digits), cend(digits), nondigit_match, digits_rx))
-      report_syntax_error("Illegal character found in " + aspect + ":\n",
-                          token_offset(nondigit_match[0].first));
+      report_lexical_error("Illegal character found in " + aspect + ":\n",
+                           token_offset(nondigit_match[0].first));
   };
 
-  const auto extract_exponent = [exponent_point, &report_syntax_error,
+  const auto extract_exponent = [exponent_point, &report_lexical_error,
                                  &token_offset](string_view &v) {
     cmatch exponent_match;
     if (matches(v, regex{R"((.*?))"s + exponent_point + R"((-|\+)?(.*?))"},
                 exponent_match)) {
       if (!exponent_match[3].length())
-        report_syntax_error("Exponent not found:\n",
-                            token_offset(exponent_match[1].second + 2));
+        report_lexical_error("Exponent not found:\n",
+                             token_offset(exponent_match[1].second + 2));
       v = string_view(exponent_match[1].first, exponent_match[1].length());
       return make_tuple(
           string_view(exponent_match[1].second, 1),
@@ -298,14 +299,14 @@ Token::Number validate_number(cmatch match,
 
   cmatch num;
   if (!matches(t.numerator, regex{R"(([^\.]*)(\.?)([^\.]*?))"}, num))
-    report_syntax_error("Number token does not match:\n",
-                        token_offset(cbegin(t.numerator)));
+    report_lexical_error("Number token does not match:\n",
+                         token_offset(cbegin(t.numerator)));
   if (!num[1].length() && !num[3].length())
-    report_syntax_error("No digits found in number:\n",
-                        token_offset(num[1].first));
+    report_lexical_error("No digits found in number:\n",
+                         token_offset(num[1].first));
   if (t.decimal_point.length() && num[2].length())
-    report_syntax_error("Second decimal point found in number:\n",
-                        token_offset(num[2].first));
+    report_lexical_error("Second decimal point found in number:\n",
+                         token_offset(num[2].first));
 
   if (t.decimal_point.empty())
     t.decimal_point = string_view(num[2].first, num[2].length());
@@ -314,8 +315,8 @@ Token::Number validate_number(cmatch match,
     t.numerator = string_view(num[1].first, num[1].length());
     if (auto pos = find(cbegin(t.numerator), cend(t.numerator), exponent_point);
         pos != num[1].second)
-      report_syntax_error("Exponent point found before decimal point:\n",
-                          token_offset(pos));
+      report_lexical_error("Exponent point found before decimal point:\n",
+                           token_offset(pos));
 
     t.denominator = string_view(num[3].first, num[3].length());
     tie(t.exponent_point, t.exponent_sign, t.exponent) =
@@ -345,9 +346,9 @@ Token::Number validate_number(cmatch match,
 }
 
 static const regex string_rx{R"(((u(\d+))|R"|["'`])((?:.|[[:cntrl:]])*))"};
-template <typename ReportSyntaxError, typename TokenOffset>
+template <typename ReportLexicalError, typename TokenOffset>
 Token::String validate_string(cmatch match,
-                              ReportSyntaxError &&report_syntax_error,
+                              ReportLexicalError &&report_lexical_error,
                               TokenOffset &&token_offset) {
   Token::String t;
   t.encoding = string_view(match[2].first, match[2].length());
@@ -362,8 +363,8 @@ Token::String validate_string(cmatch match,
     else if (match[3] == "32")
       encoding = 32;
     else
-      report_syntax_error("Unrecognized literal string encoding:\n",
-                          token_offset(match[3].first));
+      report_lexical_error("Unrecognized literal string encoding:\n",
+                           token_offset(match[3].first));
     str.remove_prefix(match[2].length());
   }
 
@@ -381,8 +382,8 @@ Token::String validate_string(cmatch match,
       t.characters = str;
       t.end_delimiter = string_view(cend(str) + 1, delimiter - 1);
       if (t.begin_delimiter != t.end_delimiter)
-        report_syntax_error("Mismatching raw string delimiter:\n",
-                            token_offset(cbegin(t.end_delimiter)));
+        report_lexical_error("Mismatching raw string delimiter:\n",
+                             token_offset(cbegin(t.end_delimiter)));
     }
     break;
   case '"':
@@ -391,21 +392,21 @@ Token::String validate_string(cmatch match,
     t.begin_quote.remove_suffix(1);
     str.remove_prefix(1);
     if (t.begin_quote != t.end_quote)
-      report_syntax_error("Mismatching quote:\n",
-                          token_offset(cbegin(t.end_quote)));
+      report_lexical_error("Mismatching quote:\n",
+                           token_offset(cbegin(t.end_quote)));
     out << "Quoted string: " << str << "\n";
     t.characters = str;
     static const regex escape_rx{
         R"(\\x[[:xdigit:]]+|\\[0-7]{1,3}|\\u.{0,4}|\\U.{0,8}|\\.)"};
     for_each(
         regex_iterator{cbegin(str), cend(str), escape_rx}, {},
-        [&str, &report_syntax_error, &token_offset](cmatch match) {
+        [&str, &report_lexical_error, &token_offset](cmatch match) {
           string_view special(match[0].first + 2, match[0].length() - 2);
           out << "Special: " << special << "\n";
 
-          const auto validate_unicode = [&str, &report_syntax_error,
+          const auto validate_unicode = [&str, &report_lexical_error,
                                          &token_offset](const char *pos) {
-            report_syntax_error(
+            report_lexical_error(
                 pos == cend(str)
                     ? "Insufficient characters found for unicode literal:\n"
                     : "Illegal character found in unicode literal:\n",
@@ -436,15 +437,15 @@ Token::String validate_string(cmatch match,
   return t;
 }
 
-template <typename ReportSyntaxError, typename TokenOffset>
+template <typename ReportLexicalError, typename TokenOffset>
 variant<Token::Operator, Token::Keyword, Token::Identifier>
-validate_identifier(cmatch match, ReportSyntaxError &&report_syntax_error,
+validate_identifier(cmatch match, ReportLexicalError &&report_lexical_error,
                     TokenOffset &&token_offset) {
   string_view ident(match[0].first, match[0].length());
   if (matches(ident, regex{R"([[:punct:]]+)"}, match)) {
     if (regex_search(cbegin(ident), cend(ident), match, regex{R"(\.)"}))
-      report_syntax_error("Period found in operator:\n",
-                          token_offset(match[0].first));
+      report_lexical_error("Period found in operator:\n",
+                           token_offset(match[0].first));
     Token::Operator t;
     t.op = ident;
     return t;
@@ -457,8 +458,8 @@ validate_identifier(cmatch match, ReportSyntaxError &&report_syntax_error,
   }
 
   if (regex_search(cbegin(ident), cend(ident), match, regex{R"(\.\.+)"}))
-    report_syntax_error("Empty segment in qualified identifier:\n",
-                        token_offset(match[0].first) + 1);
+    report_lexical_error("Empty segment in qualified identifier:\n",
+                         token_offset(match[0].first) + 1);
 
   static const regex sep_rx{R"(\.)"};
 
@@ -473,15 +474,15 @@ validate_identifier(cmatch match, ReportSyntaxError &&report_syntax_error,
     out << "Identifier segment: " << segment << "\n";
     cmatch match;
     if (!matches(segment, regex{R"([[:alpha:]_].*)"}, match))
-      report_syntax_error("Identifier or identifier segment "
-                          "must begin with a letter, underscore "
-                          "or hyphen:\n",
-                          token_offset(cbegin(segment)));
+      report_lexical_error("Identifier or identifier segment "
+                           "must begin with a letter, underscore "
+                           "or hyphen:\n",
+                           token_offset(cbegin(segment)));
     if (identifier2keyword.find(segment) != identifier2keyword.cend())
-      report_syntax_error("Identifier segment cannot be a keyword:\n",
-                          token_offset(cbegin(segment)));
+      report_lexical_error("Identifier segment cannot be a keyword:\n",
+                           token_offset(cbegin(segment)));
     if (matches(segment, regex{R"([[:punct:]]+)"}, match))
-      report_syntax_error(
+      report_lexical_error(
           "Operators not allowed as identifier or identifier segment:\n",
           token_offset(match[0].first));
   }
@@ -494,7 +495,7 @@ void validate(vector<Token>::iterator first, vector<Token>::iterator last) {
   for (auto next = first; next != last; ++next) {
     Token &t = *next;
 
-    const auto report_syntax_error =
+    const auto report_lexical_error =
         [&first, &next, &last](const string &message, size_t pos) {
           report_error<invalid_argument>(message, pos, first, next, last);
         };
@@ -516,35 +517,35 @@ void validate(vector<Token>::iterator first, vector<Token>::iterator last) {
     } else if (matches(t.region, pack_rx, match)) {
       out << "Pack: " << match[1] << "\n";
       t.detail =
-          validate_pack_unpack<true>(match, report_syntax_error, token_offset);
+          validate_pack_unpack<true>(match, report_lexical_error, token_offset);
     } else if (matches(t.region, unpack_rx, match)) {
       out << "Unpack: " << match[1] << "\n";
-      t.detail =
-          validate_pack_unpack<false>(match, report_syntax_error, token_offset);
+      t.detail = validate_pack_unpack<false>(match, report_lexical_error,
+                                             token_offset);
     } else if (matches(t.region, regex{R"([[:punct:][^\(\)\.]]+)"}, match)) {
       out << "Operator: " << t.region << "\n";
       auto ident =
-          validate_identifier(match, report_syntax_error, token_offset);
+          validate_identifier(match, report_lexical_error, token_offset);
       visit([&t](auto &&ident) { t.detail = ident; }, ident);
     } else if (matches(t.region,
                        regex{R"(((-|\+)|(0[[:alpha:]])|\.|([[:digit:]]+?)).*)"},
                        match)) {
       out << "Number: " << t.region << "\n";
       matches(t.region, number_rx, match);
-      t.detail = validate_number(match, report_syntax_error, token_offset);
+      t.detail = validate_number(match, report_lexical_error, token_offset);
     } else if (matches(t.region, string_rx, match)) {
       out << "String: " << t.region << "\n";
-      t.detail = validate_string(match, report_syntax_error, token_offset);
+      t.detail = validate_string(match, report_lexical_error, token_offset);
     } else if (matches(t.region, regex{R"([^[:space:]\(\)]+)"}, match)) {
       out << "Identifier: " << t.region << "\n";
       auto ident =
-          validate_identifier(match, report_syntax_error, token_offset);
+          validate_identifier(match, report_lexical_error, token_offset);
       visit([&t](auto &&ident) { t.detail = ident; }, ident);
     } else if (matches(t.region, regex{R"([[:space:]]+)"}, match)) {
       out << "Whitespace\n";
       t.detail = Token::Whitespace{};
     } else
-      report_syntax_error("Unknown token:\n", 0);
+      report_lexical_error("Unknown token:\n", 0);
     t.pos = distance(cbegin(first->region), cbegin(t.region));
   }
 }
