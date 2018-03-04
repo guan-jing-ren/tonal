@@ -461,13 +461,15 @@ public:
     current_scope.pop_back();
   }
   void declare_function() {
+    RequireLiteral reqlit{*this};
+    Declarator<Function> decl{*this};
+    decl->declaration = current_list.back()->head;
     // 1) Keyword
     // 2) Identifier
     // 3) Capture list (: ...)
     // 4) Concept or literal or variable parameters
     // 5) Concept or literal or variable Return type
     // 6) Function body in description
-    current_scope.push_back(Function{});
     shared_ptr<const Id> id; // Append current concept or class.
 
     auto iter = iterate_list(current_list.back());
