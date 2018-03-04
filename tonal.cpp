@@ -233,6 +233,7 @@ public:
   static map<filesystem::path, shared_ptr<ParseState>> states;
   static vector<shared_ptr<Module>> modules;
 
+  const filesystem::path path;
   const vector<shared_ptr<const Token>> tokens;
   const vector<shared_ptr<const List>> lists;
 
