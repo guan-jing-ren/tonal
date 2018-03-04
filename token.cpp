@@ -345,7 +345,8 @@ Token::Number validate_number(cmatch match,
   return t;
 }
 
-static const regex string_rx{R"(((u(\d+))|R"|["'`])((?:.|[[:cntrl:]])*))"};
+static const regex string_rx{
+    R"(((u(\d+))(?:(R"|["'`]))|R"|["'`])((?:.|[[:cntrl:]])*))"};
 template <typename ReportLexicalError, typename TokenOffset>
 Token::String validate_string(cmatch match,
                               ReportLexicalError &&report_lexical_error,
